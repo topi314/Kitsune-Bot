@@ -14,5 +14,8 @@
 # Goland files
 .idea
 
+# Config Files
+conf.env
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
