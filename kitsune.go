@@ -63,13 +63,20 @@ func slashCommandListener(event *events.SlashCommandEvent) {
 	var rsBody purrbotAPIRS
 	if err := event.Disgo.RestClient().Request(purrbotAPI.Compile("sfw", "kitsune", "img"), nil, &rsBody); err != nil {
 		log.Errorf("error retrieving kitsune: %s", err)
-		if err = event.Reply(api.NewInteractionResponseBuilder().Build()); err != nil {
+		if err = event.Reply(api.NewInteractionResponseBuilder().
+			SetContent("Sowy I have trouble reaching my Kitsune API ≧ ﹏ ≦").
+			SetEphemeral(true).
+			Build(),
+		); err != nil {
 			log.Errorf("error sending reply: %s", err)
 		}
 	}
 	if err := event.Reply(api.NewInteractionResponseBuilder().
-		SetEmbeds(api.NewEmbedBuilder().SetImage(&rsBody.Link).Build()).
-		Build(),
+		SetEmbeds(api.NewEmbedBuilder().
+			SetColor(16777215).
+			SetImage(&rsBody.Link).
+			Build(),
+		).Build(),
 	); err != nil {
 		log.Errorf("error sending reply: %s", err)
 	}
