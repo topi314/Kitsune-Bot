@@ -14,11 +14,17 @@ import (
 )
 
 var purrbotAPI = endpoints.NewCustomRoute(endpoints.GET, "https://purrbot.site/api/img/{nsfw/sfw}/{type}/{img/gif}")
+var randomfoxAPI = endpoints.NewCustomRoute(endpoints.GET, "https://randomfox.ca/{type}")
 
 type purrbotAPIRS struct {
 	Error bool   `json:"error"`
 	Link  string `json:"link"`
 	Time  int    `json:"time"`
+}
+
+type randomfoxAPIRS struct {
+	Image bool   `json:"image"`
+	Link  string `json:"link"`
 }
 
 func main() {
@@ -36,10 +42,18 @@ func main() {
 
 	kitsuneCommand := api.SlashCommand{
 		Name:        "kitsune",
-		Description: "Sends a nice Kitsune",
+		Description: "Sends a nice random Kitsune",
+	}
+	senkoCommand := api.SlashCommand{
+		Name:        "senko",
+		Description: "Sends a nice random Senko",
+	}
+	foxCommand := api.SlashCommand{
+		Name:        "fox",
+		Description: "Sends a nice random Fox",
 	}
 
-	if _, err = dgo.SetCommands(kitsuneCommand); err != nil {
+	if _, err = dgo.SetCommands(kitsuneCommand, senkoCommand, foxCommand); err != nil {
 		log.Errorf("error while registering commands: %s", err)
 	}
 
@@ -56,25 +70,44 @@ func main() {
 }
 
 func slashCommandListener(event *events.SlashCommandEvent) {
-	if event.Name != "kitsune" {
+	var link string
+	var errStr string
+	switch event.Name {
+	case "kitsune", "senko":
+		var rsBody purrbotAPIRS
+		if err := event.Disgo.RestClient().Request(purrbotAPI.Compile("sfw", event.Name, "img"), nil, &rsBody); err != nil {
+			log.Errorf("error retrieving kitsune or senko: %s", err)
+			errStr = "Sowy I have trouble reaching my " + event.Name + " API ≧ ﹏ ≦"
+		} else {
+			link = rsBody.Link
+		}
+	case "fox":
+		var rsBody randomfoxAPIRS
+		if err := event.Disgo.RestClient().Request(randomfoxAPI.Compile("floof"), nil, &rsBody); err != nil {
+			log.Errorf("error retrieving fox: %s", err)
+			errStr = "Sowy I have trouble reaching my Fox API ≧ ﹏ ≦"
+		} else {
+			link = rsBody.Link
+		}
+	default:
 		return
 	}
 
-	var rsBody purrbotAPIRS
-	if err := event.Disgo.RestClient().Request(purrbotAPI.Compile("sfw", "kitsune", "img"), nil, &rsBody); err != nil {
-		log.Errorf("error retrieving kitsune: %s", err)
-		if err = event.Reply(api.NewInteractionResponseBuilder().
-			SetContent("Sowy I have trouble reaching my Kitsune API ≧ ﹏ ≦").
+	if errStr != "" {
+		if err := event.Reply(api.NewInteractionResponseBuilder().
+			SetContent(errStr).
 			SetEphemeral(true).
 			Build(),
 		); err != nil {
 			log.Errorf("error sending reply: %s", err)
 		}
+		return
 	}
+
 	if err := event.Reply(api.NewInteractionResponseBuilder().
 		SetEmbeds(api.NewEmbedBuilder().
-			SetColor(16777215).
-			SetImage(&rsBody.Link).
+			SetColor(16564739).
+			SetImage(&link).
 			Build(),
 		).Build(),
 	); err != nil {
