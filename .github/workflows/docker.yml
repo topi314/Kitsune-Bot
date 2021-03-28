@@ -3,7 +3,7 @@ name: Docker
 on:
     push:
         branches:
-            - v2_go
+            - master
         tags:
             - v*
     pull_request:
