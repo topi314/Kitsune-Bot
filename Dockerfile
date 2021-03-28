@@ -1,6 +1,6 @@
 FROM golang:1.16.2-alpine AS build
 
-WORKDIR /tmp
+WORKDIR /tmp/app
 
 COPY . .
 
@@ -13,7 +13,7 @@ FROM alpine:latest
 
 WORKDIR /home/kitsune-bot
 
-COPY --from=build /tmp/kitsune-bot /home/kitsune-bot/
+COPY --from=build /tmp/app/kitsune-bot /home/kitsune-bot/
 
 EXPOSE 80
 
