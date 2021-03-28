@@ -1,4 +1,4 @@
-module kitsune
+module Kitsune-Bot
 
 go 1.15
 
