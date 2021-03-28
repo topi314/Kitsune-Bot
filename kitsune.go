@@ -23,7 +23,7 @@ type purrbotAPIRS struct {
 }
 
 type randomfoxAPIRS struct {
-	Image bool   `json:"image"`
+	Image string `json:"image"`
 	Link  string `json:"link"`
 }
 
@@ -87,7 +87,7 @@ func slashCommandListener(event *events.SlashCommandEvent) {
 			log.Errorf("error retrieving fox: %s", err)
 			errStr = "Sowy I have trouble reaching my Fox API ≧ ﹏ ≦"
 		} else {
-			link = rsBody.Link
+			link = rsBody.Image
 		}
 	default:
 		return
