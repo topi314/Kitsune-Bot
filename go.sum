@@ -1,5 +1,5 @@
-github.com/DisgoOrg/disgo v0.2.1-0.20210424222541-cbcc97966b93 h1:0eGg0HhLx+HvFhtgu+hogFxSvKnJonkBYJlxjFRBgsQ=
-github.com/DisgoOrg/disgo v0.2.1-0.20210424222541-cbcc97966b93/go.mod h1:f+JB1vQhiPy9hkoNRKCumfzlHfhV1CPpopI+RDhgtMY=
+github.com/DisgoOrg/disgo v0.2.1-0.20210424223223-e58fb5aae3b5 h1:cM04hfgd3f5806kTkgIvcWp8Kxm9m9ABc9FGJw8x5uU=
+github.com/DisgoOrg/disgo v0.2.1-0.20210424223223-e58fb5aae3b5/go.mod h1:f+JB1vQhiPy9hkoNRKCumfzlHfhV1CPpopI+RDhgtMY=
 github.com/DisgoOrg/log v1.0.3 h1:IjmZQQu/kuBIui22EdXmxzQGYwcPCJEkXa0Fe6W9fJk=
 github.com/DisgoOrg/log v1.0.3/go.mod h1:KFGKhBQr37d6rxZ7p2bmc8BEmDH8DZbtgdlJDSCsE7I=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
