@@ -16,6 +16,10 @@ import (
 	"github.com/DisgoOrg/disgo/api/events"
 )
 
+var logWebhookToken = os.Getenv("log_webhook_token")
+var token = os.Getenv("kitsune-token")
+var publicKey = os.Getenv("kitsune-public-key")
+
 var purrbotAPI = endpoints.NewCustomRoute(endpoints.GET, "https://purrbot.site/api/img/{nsfw/sfw}/{type}/{img/gif}")
 var randomfoxAPI = endpoints.NewCustomRoute(endpoints.GET, "https://randomfox.ca/{type}")
 
@@ -35,7 +39,7 @@ var logger = logrus.New()
 func main() {
 	httpClient := http.DefaultClient
 	logger.SetLevel(logrus.InfoLevel)
-	dlog, err := dislog.NewDisLogByToken(httpClient, logrus.InfoLevel, os.Getenv("log_webhook_token"), dislog.InfoLevelAndAbove...)
+	dlog, err := dislog.NewDisLogByToken(httpClient, logrus.InfoLevel, logWebhookToken, dislog.InfoLevelAndAbove...)
 	if err != nil {
 		logger.Errorf("error initializing dislog %s", err)
 		return
@@ -45,13 +49,13 @@ func main() {
 	logger.AddHook(dlog)
 	logger.Infof("starting Kitsune-Bot...")
 
-	dgo, err := disgo.NewBuilder(os.Getenv("kitsune-token")).
+	dgo, err := disgo.NewBuilder(token).
 		SetLogger(logger).
 		SetHTTPClient(httpClient).
 		SetCacheFlags(api.CacheFlagsNone).
 		SetMemberCachePolicy(api.MemberCachePolicyNone).
 		SetMessageCachePolicy(api.MessageCachePolicyNone).
-		SetWebhookServerProperties("/webhooks/interactions/callback", 80, os.Getenv("kitsune-public-key")).
+		SetWebhookServerProperties("/webhooks/interactions/callback", 80, publicKey).
 		AddEventListeners(&events.ListenerAdapter{OnSlashCommand: slashCommandListener}).
 		Build()
 	if err != nil {

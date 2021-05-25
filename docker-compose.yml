@@ -14,4 +14,4 @@ services:
 
 networks:
     kitsune-bot:
-        name:  kitsune-bot
+        name: kitsune-bot
