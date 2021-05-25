@@ -2,10 +2,12 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/DisgoOrg/dislog"
 	"github.com/sirupsen/logrus"
 
 	"github.com/DisgoOrg/disgo"
@@ -31,11 +33,21 @@ type randomfoxAPIRS struct {
 var logger = logrus.New()
 
 func main() {
+	httpClient := http.DefaultClient
 	logger.SetLevel(logrus.InfoLevel)
+	dlog, err := dislog.NewDisLogByToken(httpClient, logrus.InfoLevel, os.Getenv("log_webhook_token"), dislog.InfoLevelAndAbove...)
+	if err != nil {
+		logger.Errorf("error initializing dislog %s", err)
+		return
+	}
+	defer dlog.Close()
+
+	logger.AddHook(dlog)
 	logger.Infof("starting Kitsune-Bot...")
 
 	dgo, err := disgo.NewBuilder(os.Getenv("kitsune-token")).
 		SetLogger(logger).
+		SetHTTPClient(httpClient).
 		SetCacheFlags(api.CacheFlagsNone).
 		SetMemberCachePolicy(api.MemberCachePolicyNone).
 		SetMessageCachePolicy(api.MessageCachePolicyNone).
