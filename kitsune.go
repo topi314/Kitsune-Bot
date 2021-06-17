@@ -12,16 +12,16 @@ import (
 
 	"github.com/DisgoOrg/disgo"
 	"github.com/DisgoOrg/disgo/api"
-	"github.com/DisgoOrg/disgo/api/endpoints"
 	"github.com/DisgoOrg/disgo/api/events"
+	"github.com/DisgoOrg/restclient"
 )
 
 var logWebhookToken = os.Getenv("log_webhook_token")
 var token = os.Getenv("kitsune-token")
 var publicKey = os.Getenv("kitsune-public-key")
 
-var purrbotAPI = endpoints.NewCustomRoute(endpoints.GET, "https://purrbot.site/api/img/{nsfw/sfw}/{type}/{img/gif}")
-var randomfoxAPI = endpoints.NewCustomRoute(endpoints.GET, "https://randomfox.ca/{type}")
+var purrbotAPI = restclient.NewCustomRoute(restclient.GET, "https://purrbot.site/api/img/{nsfw/sfw}/{type}/{img/gif}")
+var randomfoxAPI = restclient.NewCustomRoute(restclient.GET, "https://randomfox.ca/{type}")
 
 type purrbotAPIRS struct {
 	Error bool   `json:"error"`
@@ -56,14 +56,14 @@ func main() {
 		SetMemberCachePolicy(api.MemberCachePolicyNone).
 		SetMessageCachePolicy(api.MessageCachePolicyNone).
 		SetWebhookServerProperties("/webhooks/interactions/callback", 80, publicKey).
-		AddEventListeners(&events.ListenerAdapter{OnSlashCommand: slashCommandListener}).
+		AddEventListeners(&events.ListenerAdapter{OnCommand: commandListener}).
 		Build()
 	if err != nil {
 		log.Fatalf("error while building disgo instance: %s", err)
 		return
 	}
 
-	commands := []*api.CommandCreate{
+	commands := []api.CommandCreate{
 		{
 			Name:        "kitsune",
 			Description: "Sends a nice random Kitsune",
@@ -92,23 +92,23 @@ func main() {
 	<-s
 }
 
-func slashCommandListener(event *events.SlashCommandEvent) {
+func commandListener(event events.CommandEvent) {
 	var link string
 	var errStr string
 	switch event.CommandName {
 	case "kitsune", "senko":
-		compiledRoute, _ := purrbotAPI.Compile("sfw", event.CommandName, "img")
+		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", event.CommandName, "img")
 		var rsBody purrbotAPIRS
-		if err := event.Disgo().RestClient().Request(compiledRoute, nil, &rsBody); err != nil {
+		if err := event.Disgo().RestClient().DoWithHeaders(compiledRoute, nil, &rsBody, nil); err != nil {
 			logger.Errorf("error retrieving kitsune or senko: %s", err)
 			errStr = "Sowy I have trouble reaching my " + event.CommandName + " API ≧ ﹏ ≦"
 		} else {
 			link = rsBody.Link
 		}
 	case "fox":
-		compiledRoute, _ := randomfoxAPI.Compile("floof")
+		compiledRoute, _ := randomfoxAPI.Compile(nil, "floof")
 		var rsBody randomfoxAPIRS
-		if err := event.Disgo().RestClient().Request(compiledRoute, nil, &rsBody); err != nil {
+		if err := event.Disgo().RestClient().DoWithHeaders(compiledRoute, nil, &rsBody, nil); err != nil {
 			logger.Errorf("error retrieving fox: %s", err)
 			errStr = "Sowy I have trouble reaching my Fox API ≧ ﹏ ≦"
 		} else {
@@ -119,7 +119,7 @@ func slashCommandListener(event *events.SlashCommandEvent) {
 	}
 
 	if errStr != "" {
-		if err := event.Reply(api.NewInteractionResponseBuilder().
+		if err := event.Reply(api.NewMessageCreateBuilder().
 			SetContent(errStr).
 			SetEphemeral(true).
 			Build(),
@@ -129,7 +129,7 @@ func slashCommandListener(event *events.SlashCommandEvent) {
 		return
 	}
 
-	if err := event.Reply(api.NewInteractionResponseBuilder().
+	if err := event.Reply(api.NewMessageCreateBuilder().
 		SetEmbeds(api.NewEmbedBuilder().
 			SetColor(16564739).
 			SetImage(link).
