@@ -92,16 +92,16 @@ func main() {
 	<-s
 }
 
-func commandListener(event events.CommandEvent) {
+func commandListener(event *events.CommandEvent) {
 	var link string
 	var errStr string
-	switch event.CommandName {
+	switch event.CommandName() {
 	case "kitsune", "senko":
-		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", event.CommandName, "img")
+		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", event.CommandName(), "img")
 		var rsBody purrbotAPIRS
 		if err := event.Disgo().RestClient().DoWithHeaders(compiledRoute, nil, &rsBody, nil); err != nil {
 			logger.Errorf("error retrieving kitsune or senko: %s", err)
-			errStr = "Sowy I have trouble reaching my " + event.CommandName + " API ≧ ﹏ ≦"
+			errStr = "Sowy I have trouble reaching my " + event.CommandName() + " API ≧ ﹏ ≦"
 		} else {
 			link = rsBody.Link
 		}
