@@ -34,6 +34,7 @@ var (
 	logWebhookToken = os.Getenv("log_webhook_token")
 	token           = os.Getenv("kitsune_token")
 	publicKey       = os.Getenv("kitsune_public_key")
+	logLevel, _     = logrus.ParseLevel(os.Getenv("log_level"))
 
 	purrbotAPI   = route.NewCustomAPIRoute(route.GET, "https://purrbot.site/api", "/img/{nsfw/sfw}/{type}/{img/gif}")
 	randomfoxAPI = route.NewCustomAPIRoute(route.GET, "https://randomfox.ca", "/{type}")
@@ -64,7 +65,7 @@ var (
 
 func main() {
 	logger := logrus.New()
-	logger.SetLevel(logrus.InfoLevel)
+	logger.SetLevel(logLevel)
 	if logWebhookID != "" && logWebhookToken != "" {
 		dlog, err := dislog.New(dislog.WithLogger(logger), dislog.WithWebhookIDToken(logWebhookID, logWebhookToken), dislog.WithLogLevels(dislog.InfoLevelAndAbove...))
 		if err != nil {
