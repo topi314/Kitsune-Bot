@@ -27,8 +27,8 @@ const (
 var (
 	logWebhookID    = snowflake.GetSnowflakeEnv("log_webhook_id")
 	logWebhookToken = os.Getenv("log_webhook_token")
-	token           = os.Getenv("kitsune-token")
-	publicKey       = os.Getenv("kitsune-public-key")
+	token           = os.Getenv("kitsune_token")
+	publicKey       = os.Getenv("kitsune_public_key")
 
 	purrbotAPI   = route.NewCustomAPIRoute(route.GET, "https://purrbot.site/api", "/img/{nsfw/sfw}/{type}/{img/gif}")
 	randomfoxAPI = route.NewCustomAPIRoute(route.GET, "https://randomfox.ca", "/{type}")
@@ -60,14 +60,14 @@ var (
 func main() {
 	logger := logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
-	dlog, err := dislog.New(dislog.WithLogger(logger), dislog.WithWebhookIDToken(logWebhookID, logWebhookToken), dislog.WithLogLevels(dislog.InfoLevelAndAbove...))
-	if err != nil {
-		logger.Errorf("error initializing dislog %s", err)
-		return
+	if logWebhookID != "" && logWebhookToken != "" {
+		dlog, err := dislog.New(dislog.WithLogger(logger), dislog.WithWebhookIDToken(logWebhookID, logWebhookToken), dislog.WithLogLevels(dislog.InfoLevelAndAbove...))
+		if err != nil {
+			logger.Fatal("error initializing dislog %s", err)
+		}
+		defer dlog.Close(context.TODO())
+		logger.AddHook(dlog)
 	}
-	defer dlog.Close(context.TODO())
-
-	logger.AddHook(dlog)
 	logger.Infof("starting Kitsune-Bot...")
 
 	client, err := disgo.New(token,
@@ -108,12 +108,12 @@ func commandListener(e *events.ApplicationCommandInteractionEvent) {
 		imageLink    string
 		errorMessage string
 	)
-	if err := e.DeferCreateMessage(false); err != nil {
-		e.Client().Logger().Error("error while deferring message creation: ", err)
-		return
-	}
 	switch name := e.Data.CommandName(); name {
 	case "kitsune", "senko":
+		if err := e.DeferCreateMessage(false); err != nil {
+			e.Client().Logger().Error("error while deferring message creation: ", err)
+			return
+		}
 		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", name, "img")
 		var rsBody purrbotAPIResponse
 		if err := e.Client().Rest().RestClient().Do(compiledRoute, nil, &rsBody); err != nil {
@@ -124,6 +124,10 @@ func commandListener(e *events.ApplicationCommandInteractionEvent) {
 		}
 
 	case "fox":
+		if err := e.DeferCreateMessage(false); err != nil {
+			e.Client().Logger().Error("error while deferring message creation: ", err)
+			return
+		}
 		compiledRoute, _ := randomfoxAPI.Compile(nil, "floof")
 		var rsBody randomfoxAPIResponse
 		if err := e.Client().Rest().RestClient().Do(compiledRoute, nil, &rsBody); err != nil {
