@@ -1,4 +1,4 @@
-![KitsuneBot](.github/KitsuneBot.png)
+![KitsuneBot](Senko.png)
 
 # Kitsune-Bot
 

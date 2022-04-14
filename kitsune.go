@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/signal"
@@ -25,6 +27,9 @@ const (
 )
 
 var (
+	//go:embed Senko.png
+	senkoImage []byte
+
 	logWebhookID    = snowflake.GetSnowflakeEnv("log_webhook_id")
 	logWebhookToken = os.Getenv("log_webhook_token")
 	token           = os.Getenv("kitsune_token")
@@ -144,8 +149,11 @@ func commandListener(e *events.ApplicationCommandInteractionEvent) {
 					SetDescription("Hi, I'm a small bot which delivers you Kitsune, Senko and Fox images./nI hope you enjoy the images.").
 					AddField("Version", version, false).
 					SetColor(embedColor).
-					SetThumbnail(e.Client().SelfUser().EffectiveAvatarURL()).
+					SetThumbnail("attachments://senko.png").
 					Build(),
+			},
+			Files: []*discord.File{
+				discord.NewFile("senko.png", "Senko", bytes.NewBuffer(senkoImage)),
 			},
 			Components: []discord.ContainerComponent{discord.NewActionRow(
 				discord.NewLinkButton("GitHub", "https://github.com/TopiSenpai/Kitsune-Bot"),
