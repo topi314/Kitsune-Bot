@@ -1,141 +1,190 @@
 package main
 
 import (
-	"log"
-	"net/http"
+	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/DisgoOrg/dislog"
+	"github.com/disgoorg/disgo"
+	"github.com/disgoorg/disgo/bot"
+	"github.com/disgoorg/disgo/cache"
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/disgo/httpserver"
+	"github.com/disgoorg/disgo/rest/route"
+	"github.com/disgoorg/dislog"
+	"github.com/disgoorg/snowflake"
 	"github.com/sirupsen/logrus"
-
-	"github.com/DisgoOrg/disgo"
-	"github.com/DisgoOrg/disgo/api"
-	"github.com/DisgoOrg/disgo/api/events"
-	"github.com/DisgoOrg/restclient"
 )
 
-var logWebhookToken = os.Getenv("log_webhook_token")
-var token = os.Getenv("kitsune-token")
-var publicKey = os.Getenv("kitsune-public-key")
+const (
+	embedColor = 0xFC9803
+	version    = "dev"
+)
 
-var purrbotAPI = restclient.NewCustomRoute(restclient.GET, "https://purrbot.site/api/img/{nsfw/sfw}/{type}/{img/gif}")
-var randomfoxAPI = restclient.NewCustomRoute(restclient.GET, "https://randomfox.ca/{type}")
+var (
+	logWebhookID    = snowflake.GetSnowflakeEnv("log_webhook_id")
+	logWebhookToken = os.Getenv("log_webhook_token")
+	token           = os.Getenv("kitsune-token")
+	publicKey       = os.Getenv("kitsune-public-key")
 
-type purrbotAPIRS struct {
-	Error bool   `json:"error"`
-	Link  string `json:"link"`
-	Time  int    `json:"time"`
-}
+	purrbotAPI   = route.NewCustomAPIRoute(route.GET, "https://purrbot.site/api", "/img/{nsfw/sfw}/{type}/{img/gif}")
+	randomfoxAPI = route.NewCustomAPIRoute(route.GET, "https://randomfox.ca", "/{type}")
 
-type randomfoxAPIRS struct {
-	Image string `json:"image"`
-	Link  string `json:"link"`
-}
-
-var logger = logrus.New()
+	commands = []discord.ApplicationCommandCreate{
+		discord.SlashCommandCreate{
+			CommandName:       "kitsune",
+			Description:       "Sends a nice random Kitsune",
+			DefaultPermission: true,
+		},
+		discord.SlashCommandCreate{
+			CommandName:       "senko",
+			Description:       "Sends a nice random Senko",
+			DefaultPermission: true,
+		},
+		discord.SlashCommandCreate{
+			CommandName:       "fox",
+			Description:       "Sends a nice random Fox",
+			DefaultPermission: true,
+		},
+		discord.SlashCommandCreate{
+			CommandName:       "info",
+			Description:       "Sends some info about me",
+			DefaultPermission: true,
+		},
+	}
+)
 
 func main() {
-	httpClient := http.DefaultClient
+	logger := logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
-	dlog, err := dislog.NewDisLogByToken(httpClient, logrus.InfoLevel, logWebhookToken, dislog.InfoLevelAndAbove...)
+	dlog, err := dislog.New(dislog.WithLogger(logger), dislog.WithWebhookIDToken(logWebhookID, logWebhookToken), dislog.WithLogLevels(dislog.InfoLevelAndAbove...))
 	if err != nil {
 		logger.Errorf("error initializing dislog %s", err)
 		return
 	}
-	defer dlog.Close()
+	defer dlog.Close(context.TODO())
 
 	logger.AddHook(dlog)
 	logger.Infof("starting Kitsune-Bot...")
 
-	dgo, err := disgo.NewBuilder(token).
-		SetLogger(logger).
-		SetHTTPClient(httpClient).
-		SetCacheFlags(api.CacheFlagsNone).
-		SetMemberCachePolicy(api.MemberCachePolicyNone).
-		SetMessageCachePolicy(api.MessageCachePolicyNone).
-		SetWebhookServerProperties("/webhooks/interactions/callback", 80, publicKey).
-		AddEventListeners(&events.ListenerAdapter{OnCommand: commandListener}).
-		Build()
+	client, err := disgo.New(token,
+		bot.WithLogger(logger),
+		bot.WithCacheConfigOpts(cache.WithCacheFlags(cache.FlagsNone)),
+		bot.WithHTTPServerConfigOpts(
+			httpserver.WithAddress(":80"),
+			httpserver.WithPublicKey(publicKey),
+			httpserver.WithURL("/webhooks/interactions/callback"),
+		),
+		bot.WithEventListeners(&events.ListenerAdapter{
+			OnApplicationCommandInteraction: commandListener,
+		}),
+	)
 	if err != nil {
-		log.Fatalf("error while building disgo instance: %s", err)
+		logger.Fatalf("error while building disgo instance: %s", err)
 		return
 	}
 
-	commands := []api.CommandCreate{
-		{
-			Name:        "kitsune",
-			Description: "Sends a nice random Kitsune",
-		},
-		{
-			Name:        "senko",
-			Description: "Sends a nice random Senko",
-		},
-		{
-			Name:        "fox",
-			Description: "Sends a nice random Fox",
-		},
+	if _, err = client.Rest().Applications().SetGlobalCommands(client.ApplicationID(), commands); err != nil {
+		logger.Error("error while registering commands: ", err)
 	}
 
-	if _, err = dgo.SetCommands(commands...); err != nil {
-		logger.Errorf("error while registering commands: %s", err)
+	if err = client.StartHTTPServer(); err != nil {
+		logger.Error("error while starting http server: ", err)
 	}
 
-	dgo.Start()
+	defer client.Close(context.TODO())
 
-	defer dgo.Close()
-
-	logger.Infof("Bot is now running. Press CTRL-C to exit.")
+	logger.Info("Bot is now running. Press CTRL-C to exit.")
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-s
 }
 
-func commandListener(event *events.CommandEvent) {
-	var link string
-	var errStr string
-	switch event.CommandName() {
+func commandListener(e *events.ApplicationCommandInteractionEvent) {
+	var (
+		imageLink    string
+		errorMessage string
+	)
+	if err := e.DeferCreateMessage(false); err != nil {
+		e.Client().Logger().Error("error while deferring message creation: ", err)
+		return
+	}
+	switch name := e.Data.CommandName(); name {
 	case "kitsune", "senko":
-		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", event.CommandName(), "img")
-		var rsBody purrbotAPIRS
-		if err := event.Disgo().RestClient().DoWithHeaders(compiledRoute, nil, &rsBody, nil); err != nil {
-			logger.Errorf("error retrieving kitsune or senko: %s", err)
-			errStr = "Sowy I have trouble reaching my " + event.CommandName() + " API ≧ ﹏ ≦"
+		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", name, "img")
+		var rsBody purrbotAPIResponse
+		if err := e.Client().Rest().RestClient().Do(compiledRoute, nil, &rsBody); err != nil {
+			e.Client().Logger().Error("error retrieving kitsune or senko: ", err)
+			errorMessage = "Sowy I had trouble reaching my " + name + " API ≧ ﹏ ≦"
 		} else {
-			link = rsBody.Link
+			imageLink = rsBody.Link
 		}
+
 	case "fox":
 		compiledRoute, _ := randomfoxAPI.Compile(nil, "floof")
-		var rsBody randomfoxAPIRS
-		if err := event.Disgo().RestClient().DoWithHeaders(compiledRoute, nil, &rsBody, nil); err != nil {
-			logger.Errorf("error retrieving fox: %s", err)
-			errStr = "Sowy I have trouble reaching my Fox API ≧ ﹏ ≦"
+		var rsBody randomfoxAPIResponse
+		if err := e.Client().Rest().RestClient().Do(compiledRoute, nil, &rsBody); err != nil {
+			e.Client().Logger().Error("error retrieving fox: ", err)
+			errorMessage = "Sowy I had trouble reaching my Fox API ≧ ﹏ ≦"
 		} else {
-			link = rsBody.Image
+			imageLink = rsBody.Image
 		}
+
+	case "info":
+		if err := e.CreateMessage(discord.MessageCreate{
+			Embeds: []discord.Embed{
+				discord.NewEmbedBuilder().
+					SetDescription("Hi, I'm a small bot which delivers you Kitsune, Senko and Fox images./nI hope you enjoy the images.").
+					AddField("Version", version, false).
+					SetColor(embedColor).
+					SetThumbnail(e.Client().SelfUser().EffectiveAvatarURL()).
+					Build(),
+			},
+			Components: []discord.ContainerComponent{discord.NewActionRow(
+				discord.NewLinkButton("GitHub", "https://github.com/TopiSenpai/Kitsune-Bot"),
+				discord.NewLinkButton("Discord", "https://discord.gg/sD3ABd5"),
+				discord.NewLinkButton("Invite Me", fmt.Sprintf("https://discord.com/oauth2/authorize?client_id=%s&scope=applications.commands", e.Client().ID())),
+			)},
+		}); err != nil {
+			e.Client().Logger().Error("error while sending info message: ", err)
+		}
+		return
+
 	default:
+		e.Client().Logger().Warn("unknown command with name %s received", name)
 		return
 	}
 
-	if errStr != "" {
-		if err := event.Reply(api.NewMessageCreateBuilder().
-			SetContent(errStr).
-			SetEphemeral(true).
-			Build(),
-		); err != nil {
-			logger.Errorf("error sending reply: %s", err)
-		}
-		return
+	var messageUpdate discord.MessageUpdate
+
+	if errorMessage != "" {
+		messageUpdate = discord.MessageUpdate{Content: &errorMessage}
+	} else {
+		messageUpdate = discord.MessageUpdate{Embeds: &[]discord.Embed{
+			{
+				Color: embedColor,
+				Image: &discord.EmbedResource{
+					URL: imageLink,
+				},
+			},
+		}}
 	}
 
-	if err := event.Reply(api.NewMessageCreateBuilder().
-		SetEmbeds(api.NewEmbedBuilder().
-			SetColor(16564739).
-			SetImage(link).
-			Build(),
-		).Build(),
-	); err != nil {
-		logger.Errorf("error sending reply: %s", err)
+	if _, err := e.Client().Rest().Interactions().UpdateInteractionResponse(e.ApplicationID(), e.Token(), messageUpdate); err != nil {
+		e.Client().Logger().Error("error updating interaction: ", err)
 	}
+}
+
+type purrbotAPIResponse struct {
+	Error bool   `json:"error"`
+	Link  string `json:"link"`
+	Time  int    `json:"time"`
+}
+
+type randomfoxAPIResponse struct {
+	Image string `json:"image"`
+	Link  string `json:"link"`
 }

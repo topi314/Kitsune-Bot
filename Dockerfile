@@ -1,20 +1,19 @@
-FROM golang:1.16.2-alpine AS build
+FROM golang:1.18-alpine AS build
+
+ARG VERSION=dev
 
 WORKDIR /tmp/app
 
 COPY . .
 
-RUN apk add --no-cache git && \
-    go mod download && \
+RUN go mod download && \
     go mod verify && \
-    go build -o kitsune-bot
+    go build -ldflags="-X 'main.version=${VERSION}'" -o bot kitsune.go
 
-FROM alpine:latest
+FROM alpine
 
-WORKDIR /home/kitsune-bot
+WORKDIR /app
 
-COPY --from=build /tmp/app/kitsune-bot /home/kitsune-bot/
+COPY --from=build /tmp/app/bot /app/bot
 
-EXPOSE 80
-
-ENTRYPOINT ./kitsune-bot
+ENTRYPOINT ["./bot"]
