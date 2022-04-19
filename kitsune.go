@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	//go:embed Senko.png
+	//go:embed senko.png
 	senkoImage []byte
 
 	logWebhookID    = snowflake.GetSnowflakeEnv("log_webhook_id")
@@ -154,7 +154,7 @@ func commandListener(e *events.ApplicationCommandInteractionEvent) {
 					SetDescription("Hi, I'm a small bot which delivers you Kitsune, Senko and Fox images./nI hope you enjoy the images.").
 					AddField("Version", version, false).
 					SetColor(embedColor).
-					SetThumbnail("attachments://senko.png").
+					SetThumbnail("attachment://senko.png").
 					Build(),
 			},
 			Files: []*discord.File{
