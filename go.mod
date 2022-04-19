@@ -3,7 +3,7 @@ module Kitsune-Bot
 go 1.18
 
 require (
-	github.com/disgoorg/disgo v0.8.8
+	github.com/disgoorg/disgo v0.8.9
 	github.com/disgoorg/dislog v1.0.6
 	github.com/disgoorg/snowflake v1.1.0
 	github.com/sirupsen/logrus v1.8.1

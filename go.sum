@@ -1,7 +1,7 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/disgoorg/disgo v0.8.8 h1:5PXDXDaEKZzz1OKTJMwHco8mEW7T+O6Vs/ACcLgpJ+o=
-github.com/disgoorg/disgo v0.8.8/go.mod h1:F5Qj4yeX3auG0JiEY3pP5nRSUjBsbuhITTAslNsIOvA=
+github.com/disgoorg/disgo v0.8.9 h1:1jo/Rj8GPyMR77XM05mXxNkTTV87RgId0d2lCecigz8=
+github.com/disgoorg/disgo v0.8.9/go.mod h1:F5Qj4yeX3auG0JiEY3pP5nRSUjBsbuhITTAslNsIOvA=
 github.com/disgoorg/dislog v1.0.6 h1:mAgpPObgYE60gGV0H1XLbdkwZ9KTEoqTmrYnZ2BaDnM=
 github.com/disgoorg/dislog v1.0.6/go.mod h1:6yRnFQfH1LXCwdEgz7BIhvhmCDXX5NJAkXWE64KkgSc=
 github.com/disgoorg/log v1.2.0 h1:sqlXnu/ZKAlIlHV9IO+dbMto7/hCQ474vlIdMWk8QKo=

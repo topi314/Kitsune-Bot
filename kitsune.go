@@ -78,7 +78,11 @@ func main() {
 
 	client, err := disgo.New(token,
 		bot.WithLogger(logger),
-		bot.WithCacheConfigOpts(cache.WithCacheFlags(cache.FlagsNone)),
+		bot.WithCacheConfigOpts(
+			cache.WithCacheFlags(cache.FlagsNone),
+			cache.WithMemberCachePolicy(cache.MemberCachePolicyNone),
+			cache.WithMessageCachePolicy(cache.MessageCachePolicyNone),
+		),
 		bot.WithHTTPServerConfigOpts(
 			httpserver.WithAddress(":80"),
 			httpserver.WithPublicKey(publicKey),
