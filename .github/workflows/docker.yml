@@ -54,4 +54,5 @@ jobs:
               with:
                   url: 'https://watchtower.topi.wtf/v1/update'
                   method: 'POST'
+                  timeout: 60000
                   customHeaders: '{"Authorization": "Bearer ${{ secrets.TOKEN }}"}'
