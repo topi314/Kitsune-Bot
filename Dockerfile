@@ -1,19 +1,21 @@
 FROM golang:1.18-alpine AS build
 
-ARG VERSION=dev
+WORKDIR /build
 
-WORKDIR /tmp/app
+COPY go.mod go.sum ./
+
+RUN go mod download
 
 COPY . .
 
-RUN go mod download && \
-    go mod verify && \
-    go build -ldflags="-X 'main.version=${VERSION}'" -o bot kitsune.go
+RUN CGO_ENABLED=0 go build -ldflags '-s' -o app .
 
 FROM alpine
 
 WORKDIR /app
 
-COPY --from=build /tmp/app/bot /app/bot
+COPY --from=build /build/app /app/bin
 
-ENTRYPOINT ["./bot"]
+EXPOSE 80
+
+ENTRYPOINT ["/app/bin"]

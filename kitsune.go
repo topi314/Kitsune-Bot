@@ -5,68 +5,78 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/disgoorg/disgo"
 	"github.com/disgoorg/disgo/bot"
-	"github.com/disgoorg/disgo/cache"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/disgo/httpserver"
-	"github.com/disgoorg/disgo/rest/route"
 	"github.com/disgoorg/dislog"
-	"github.com/disgoorg/snowflake"
+	"github.com/disgoorg/json"
+	"github.com/disgoorg/snowflake/v2"
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	embedColor = 0xFC9803
-	version    = "dev"
-)
+const embedColor = 0xFC9803
 
 var (
 	//go:embed senko.png
 	senkoImage []byte
 
-	logWebhookID    = snowflake.GetSnowflakeEnv("log_webhook_id")
+	logWebhookID    = snowflake.GetEnv("log_webhook_id")
 	logWebhookToken = os.Getenv("log_webhook_token")
 	token           = os.Getenv("kitsune_token")
 	publicKey       = os.Getenv("kitsune_public_key")
 	logLevel, _     = logrus.ParseLevel(os.Getenv("log_level"))
 
-	purrbotAPI   = route.NewCustomAPIRoute(route.GET, "https://purrbot.site/api", "/img/{nsfw/sfw}/{type}/{img/gif}")
-	randomfoxAPI = route.NewCustomAPIRoute(route.GET, "https://randomfox.ca", "/{type}")
+	animatedTypes = map[string]bool{
+		"kitsune": false,
+		"senko":   false,
+		"shiro":   false,
+		"tail":    true,
+		"fluff":   true,
+	}
 
+	logger   = logrus.New()
 	commands = []discord.ApplicationCommandCreate{
 		discord.SlashCommandCreate{
-			CommandName:       "kitsune",
-			Description:       "Sends a nice random Kitsune",
-			DefaultPermission: true,
+			Name:        "kitsune",
+			Description: "Sends a nice random Kitsune",
 		},
 		discord.SlashCommandCreate{
-			CommandName:       "senko",
-			Description:       "Sends a nice random Senko",
-			DefaultPermission: true,
+			Name:        "senko",
+			Description: "Sends a nice random Senko",
 		},
 		discord.SlashCommandCreate{
-			CommandName:       "fox",
-			Description:       "Sends a nice random Fox",
-			DefaultPermission: true,
+			Name:        "shiro",
+			Description: "Sends a nice random Shiro",
 		},
 		discord.SlashCommandCreate{
-			CommandName:       "info",
-			Description:       "Sends some info about me",
-			DefaultPermission: true,
+			Name:        "tail",
+			Description: "Sends a nice random fox tail",
+		},
+		discord.SlashCommandCreate{
+			Name:        "fluff",
+			Description: "Sends a nice random fox fluff",
+		},
+		discord.SlashCommandCreate{
+			Name:        "fox",
+			Description: "Sends a nice random Fox",
+		},
+		discord.SlashCommandCreate{
+			Name:        "info",
+			Description: "Sends some info about me",
 		},
 	}
 )
 
 func main() {
-	logger := logrus.New()
 	logger.SetLevel(logLevel)
-	if logWebhookID != "" && logWebhookToken != "" {
+	if logWebhookID != 0 && logWebhookToken != "" {
 		dlog, err := dislog.New(dislog.WithLogger(logger), dislog.WithWebhookIDToken(logWebhookID, logWebhookToken), dislog.WithLogLevels(dislog.InfoLevelAndAbove...))
 		if err != nil {
 			logger.Fatal("error initializing dislog %s", err)
@@ -78,14 +88,8 @@ func main() {
 
 	client, err := disgo.New(token,
 		bot.WithLogger(logger),
-		bot.WithCacheConfigOpts(
-			cache.WithCacheFlags(cache.FlagsNone),
-			cache.WithMemberCachePolicy(cache.MemberCachePolicyNone),
-			cache.WithMessageCachePolicy(cache.MessageCachePolicyNone),
-		),
-		bot.WithHTTPServerConfigOpts(
+		bot.WithHTTPServerConfigOpts(publicKey,
 			httpserver.WithAddress(":80"),
-			httpserver.WithPublicKey(publicKey),
 			httpserver.WithURL("/webhooks/interactions/callback"),
 		),
 		bot.WithEventListeners(&events.ListenerAdapter{
@@ -97,11 +101,11 @@ func main() {
 		return
 	}
 
-	if _, err = client.Rest().Applications().SetGlobalCommands(client.ApplicationID(), commands); err != nil {
+	if _, err = client.Rest().SetGlobalCommands(client.ApplicationID(), commands); err != nil {
 		logger.Error("error while registering commands: ", err)
 	}
 
-	if err = client.StartHTTPServer(); err != nil {
+	if err = client.OpenHTTPServer(); err != nil {
 		logger.Error("error while starting http server: ", err)
 	}
 
@@ -113,46 +117,58 @@ func main() {
 	<-s
 }
 
-func commandListener(e *events.ApplicationCommandInteractionEvent) {
-	var (
-		imageLink    string
-		errorMessage string
-	)
+func commandListener(e *events.ApplicationCommandInteractionCreate) {
+	var imageLink string
 	switch name := e.Data.CommandName(); name {
-	case "kitsune", "senko":
+	case "kitsune", "senko", "shiro", "fluff", "tail":
 		if err := e.DeferCreateMessage(false); err != nil {
-			e.Client().Logger().Error("error while deferring message creation: ", err)
+			logger.Error("error while deferring message creation: ", err)
 			return
 		}
-		compiledRoute, _ := purrbotAPI.Compile(nil, "sfw", name, "img")
-		var rsBody purrbotAPIResponse
-		if err := e.Client().Rest().RestClient().Do(compiledRoute, nil, &rsBody); err != nil {
-			e.Client().Logger().Error("error retrieving kitsune or senko: ", err)
-			errorMessage = "Sowy I had trouble reaching my " + name + " API ≧ ﹏ ≦"
-		} else {
-			imageLink = rsBody.Link
+
+		rs, err := http.Get(purrbotAPIURL(false, name, false))
+		if err != nil || rs.StatusCode != http.StatusOK {
+			logger.Error("error retrieving kitsune or senko: ", err)
+			updateInteraction(e, discord.MessageUpdate{
+				Content: json.Ptr("Sowy I had trouble reaching my " + name + " API ≧ ﹏ ≦"),
+			})
+			return
 		}
+
+		var v purrbotAPIResponse
+		if err = json.NewDecoder(rs.Body).Decode(&v); err != nil {
+			logger.Error("error decoding kitsune or senko response: ", err)
+			updateError(e, "Sowy I had trouble decoding my "+name+" API ≧ ﹏ ≦")
+			return
+		}
+		imageLink = v.Link
 
 	case "fox":
 		if err := e.DeferCreateMessage(false); err != nil {
-			e.Client().Logger().Error("error while deferring message creation: ", err)
+			logger.Error("error while deferring message creation: ", err)
 			return
 		}
-		compiledRoute, _ := randomfoxAPI.Compile(nil, "floof")
-		var rsBody randomfoxAPIResponse
-		if err := e.Client().Rest().RestClient().Do(compiledRoute, nil, &rsBody); err != nil {
-			e.Client().Logger().Error("error retrieving fox: ", err)
-			errorMessage = "Sowy I had trouble reaching my Fox API ≧ ﹏ ≦"
-		} else {
-			imageLink = rsBody.Image
+
+		rs, err := http.Get(randomFoxAPIURL)
+		if err != nil || rs.StatusCode != http.StatusOK {
+			logger.Error("error retrieving fox: ", err)
+			updateError(e, "Sowy I had trouble reaching my Fox API ≧ ﹏ ≦")
+			return
 		}
+
+		var v randomfoxAPIResponse
+		if err = json.NewDecoder(rs.Body).Decode(&v); err != nil {
+			logger.Error("error decoding kitsune or senko response: ", err)
+			updateError(e, "Sowy I had trouble decoding my "+name+" API ≧ ﹏ ≦")
+			return
+		}
+		imageLink = v.Image
 
 	case "info":
 		if err := e.CreateMessage(discord.MessageCreate{
 			Embeds: []discord.Embed{
 				discord.NewEmbedBuilder().
 					SetDescription("Hi, I'm a small bot which delivers you Kitsune, Senko and Fox images./nI hope you enjoy the images.").
-					AddField("Version", version, false).
 					SetColor(embedColor).
 					SetThumbnail("attachment://senko.png").
 					Build(),
@@ -166,42 +182,34 @@ func commandListener(e *events.ApplicationCommandInteractionEvent) {
 				discord.NewLinkButton("Invite Me", fmt.Sprintf("https://discord.com/oauth2/authorize?client_id=%s&scope=applications.commands", e.Client().ID())),
 			)},
 		}); err != nil {
-			e.Client().Logger().Error("error while sending info message: ", err)
+			logger.Error("error while sending info message: ", err)
 		}
 		return
 
 	default:
-		e.Client().Logger().Warn("unknown command with name %s received", name)
+		logger.Warn("unknown command with name %s received", name)
+		updateError(e, "Sowy I don't know this command ≧ ﹏ ≦")
 		return
 	}
 
-	var messageUpdate discord.MessageUpdate
-
-	if errorMessage != "" {
-		messageUpdate = discord.MessageUpdate{Content: &errorMessage}
-	} else {
-		messageUpdate = discord.MessageUpdate{Embeds: &[]discord.Embed{
-			{
-				Color: embedColor,
-				Image: &discord.EmbedResource{
-					URL: imageLink,
-				},
+	updateInteraction(e, discord.MessageUpdate{Embeds: &[]discord.Embed{
+		{
+			Color: embedColor,
+			Image: &discord.EmbedResource{
+				URL: imageLink,
 			},
-		}}
-	}
-
-	if _, err := e.Client().Rest().Interactions().UpdateInteractionResponse(e.ApplicationID(), e.Token(), messageUpdate); err != nil {
-		e.Client().Logger().Error("error updating interaction: ", err)
-	}
+		},
+	}})
 }
 
-type purrbotAPIResponse struct {
-	Error bool   `json:"error"`
-	Link  string `json:"link"`
-	Time  int    `json:"time"`
+func updateError(e *events.ApplicationCommandInteractionCreate, message string) {
+	updateInteraction(e, discord.MessageUpdate{
+		Content: json.Ptr(message),
+	})
 }
 
-type randomfoxAPIResponse struct {
-	Image string `json:"image"`
-	Link  string `json:"link"`
+func updateInteraction(e *events.ApplicationCommandInteractionCreate, messageUpdate discord.MessageUpdate) {
+	if _, err := e.Client().Rest().UpdateInteractionResponse(e.ApplicationID(), e.Token(), messageUpdate); err != nil {
+		logger.Error("error updating interaction: ", err)
+	}
 }
