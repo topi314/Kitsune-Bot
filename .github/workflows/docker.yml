@@ -47,6 +47,7 @@ jobs:
         needs:
             - docker
         runs-on: ubuntu-latest
+        if: ${{ !github.ref.startsWith('refs/tags/') }}
         steps:
             - name: Deploy
               uses: fjogeleit/http-request-action@v1
