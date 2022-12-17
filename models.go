@@ -2,14 +2,12 @@ package main
 
 const randomFoxAPIURL = "https://randomfox.ca/floof"
 
-func purrbotAPIURL(nsfw bool, imageType string, animated bool) string {
-	url := "https://purrbot.site/api"
-	if nsfw {
-		url += "/nsfw"
-	}
-	url += "/" + imageType
+func purrbotAPIURL(imageType string, animated bool) string {
+	url := "https://purrbot.site/api/img/sfw/" + imageType
 	if animated {
 		url += "/gif"
+	} else {
+		url += "/img"
 	}
 	return url
 }

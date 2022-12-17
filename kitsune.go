@@ -126,7 +126,7 @@ func commandListener(e *events.ApplicationCommandInteractionCreate) {
 			return
 		}
 
-		rs, err := http.Get(purrbotAPIURL(false, name, false))
+		rs, err := http.Get(purrbotAPIURL(name, animatedTypes[name]))
 		if err != nil || rs.StatusCode != http.StatusOK {
 			logger.Error("error retrieving kitsune or senko: ", err)
 			updateInteraction(e, discord.MessageUpdate{
@@ -134,6 +134,7 @@ func commandListener(e *events.ApplicationCommandInteractionCreate) {
 			})
 			return
 		}
+		defer rs.Body.Close()
 
 		var v purrbotAPIResponse
 		if err = json.NewDecoder(rs.Body).Decode(&v); err != nil {

@@ -1,4 +1,4 @@
-module githib.com/TopiSenpai/Kitsune-Bot
+module github.com/TopiSenpai/Kitsune-Bot
 
 go 1.18
 
